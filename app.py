@@ -27,6 +27,12 @@ import toml
 # Load .env without overriding existing env vars
 load_dotenv(override=False)
 
+CONFIG = {
+    "port": int(os.environ.get("PORT", 8081)),
+    "host": os.environ.get("HOST", "0.0.0.0"),
+    "frontend_port": int(os.environ.get("FRONTEND_PORT", 8080)),
+}
+
 # ============================================================================
 # API KEY LOADING
 # ============================================================================
@@ -63,7 +69,10 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        f"http://localhost:{CONFIG['frontend_port']}",
+        f"http://127.0.0.1:{CONFIG['frontend_port']}",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -288,8 +297,6 @@ async def get_metadata():
 # FRONTEND SERVING
 # ============================================================================
 
-app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="static")
-
 # ============================================================================
 # SERVER START
 # ============================================================================
@@ -297,13 +304,8 @@ app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="static")
 if __name__ == "__main__":
     import uvicorn
 
-    port = int(os.environ.get("PORT", 8080))
-    host = os.environ.get("HOST", "0.0.0.0")
-
     print("\n" + "=" * 70)
-    print(f"🚀 FastAPI Text Intelligence Server running at http://localhost:{port}")
-    print(f"📦 Serving built frontend from frontend/dist")
-    print(f"📚 API docs: http://localhost:{port}/docs")
+    print(f"🚀 FastAPI Text Intelligence Server running at http://localhost:{CONFIG['port']}")
     print("=" * 70 + "\n")
 
-    uvicorn.run(app, host=host, port=port)
+    uvicorn.run(app, host=CONFIG["host"], port=CONFIG["port"])
