@@ -15,7 +15,7 @@ Key Features:
 
 import os
 from typing import Optional
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -144,8 +144,7 @@ async def analyze(
     summarize: Optional[str] = None,
     topics: Optional[str] = None,
     sentiment: Optional[str] = None,
-    intents: Optional[str] = None,
-    x_request_id: Optional[str] = Header(None)
+    intents: Optional[str] = None
 ):
     """
     POST /text-intelligence/analyze
@@ -153,7 +152,6 @@ async def analyze(
     Contract-compliant text intelligence endpoint.
     Accepts JSON body with either text or url field.
     Query parameters: summarize, topics, sentiment, intents, language
-    Header: X-Request-Id (optional, echoed back)
     """
     try:
         # Validate text input
@@ -171,8 +169,6 @@ async def analyze(
                     }
                 }
             )
-            if x_request_id:
-                response.headers["X-Request-Id"] = x_request_id
             return response
 
         # Build Deepgram options
@@ -191,8 +187,6 @@ async def analyze(
                     }
                 }
             )
-            if x_request_id:
-                response.headers["X-Request-Id"] = x_request_id
             return response
 
         # Call Deepgram API
@@ -210,10 +204,7 @@ async def analyze(
         else:
             result = {"results": dict(response_data.results) if hasattr(response_data, 'results') else {}}
 
-        response = JSONResponse(status_code=200, content=result)
-        if x_request_id:
-            response.headers["X-Request-Id"] = x_request_id
-        return response
+        return JSONResponse(status_code=200, content=result)
 
     except Exception as e:
         print(f"Text Intelligence Error: {e}")
@@ -232,7 +223,7 @@ async def analyze(
             error_code = "TEXT_TOO_LONG"
             status_code = 400
 
-        response = JSONResponse(
+        return JSONResponse(
             status_code=status_code,
             content={
                 "error": {
@@ -243,9 +234,6 @@ async def analyze(
                 }
             }
         )
-        if x_request_id:
-            response.headers["X-Request-Id"] = x_request_id
-        return response
 
 @app.get("/health")
 async def health():
