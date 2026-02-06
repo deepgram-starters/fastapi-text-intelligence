@@ -1,28 +1,60 @@
-# FastAPI Text Intelligence Starter
+# FastAPI Text Intelligence
 
-Text analysis demo using Deepgram's Text Intelligence API with Python FastAPI backend.
+Get started using Deepgram's Text Intelligence with this FastAPI demo app
+
+<!-- [**Live Demo \u2192**](#) -->
 
 ## Quick Start
+
+Click the button below to fork the repo:
+
+[![Fork on GitHub](https://img.shields.io/badge/Fork_on_GitHub-blue?logo=github)](https://github.com/deepgram-starters/fastapi-text-intelligence/fork)
+
+## Local Development
+
+<!--
+### CLI
+
+```bash
+dg check
+dg install
+dg start
+```
+-->
+
+### Makefile (Recommended)
+
+```bash
+make init
+cp sample.env .env  # Add your DEEPGRAM_API_KEY
+make start
+```
+
+Open [http://localhost:8080](http://localhost:8080) in your browser.
+
+### Python & pnpm
 
 ```bash
 git clone --recurse-submodules https://github.com/deepgram-starters/fastapi-text-intelligence.git
 cd fastapi-text-intelligence
-make init
-# Create .env with DEEPGRAM_API_KEY=your_key
-make dev
+python3 -m venv venv
+./venv/bin/pip install -r requirements.txt
+cd frontend && corepack pnpm install && cd ..
+cp sample.env .env  # Add your DEEPGRAM_API_KEY
 ```
 
-**URLs:**
-- Frontend: http://localhost:8080
-- API Docs: http://localhost:8080/docs
+Start both servers in separate terminals:
 
-## Features
+```bash
+# Terminal 1 - Backend (port 8081)
+./venv/bin/python app.py
 
-- Summarization, Topic Detection, Sentiment Analysis, Intent Recognition
-- Text or URL input
-- Async/await performance
-- Automatic OpenAPI docs
+# Terminal 2 - Frontend (port 8080)
+cd frontend && corepack pnpm run dev -- --port 8080 --no-open
+```
+
+Open [http://localhost:8080](http://localhost:8080) in your browser.
 
 ## License
 
-MIT License
+MIT - See [LICENSE](./LICENSE)
