@@ -6,7 +6,7 @@ powered by Deepgram's Text Intelligence service. It's designed to be easily
 modified and extended for your own projects.
 
 Key Features:
-- Contract-compliant API endpoint: POST /text-intelligence/analyze
+- Contract-compliant API endpoint: POST /api/text-intelligence
 - Accepts text or URL in JSON body
 - Supports multiple intelligence features: summarization, topics, sentiment, intents
 - Async/await for better performance
@@ -30,7 +30,6 @@ load_dotenv(override=False)
 CONFIG = {
     "port": int(os.environ.get("PORT", 8081)),
     "host": os.environ.get("HOST", "0.0.0.0"),
-    "frontend_port": int(os.environ.get("FRONTEND_PORT", 8080)),
 }
 
 # ============================================================================
@@ -69,11 +68,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        f"http://localhost:{CONFIG['frontend_port']}",
-        f"http://127.0.0.1:{CONFIG['frontend_port']}",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -137,7 +132,7 @@ def build_deepgram_options(
 # API ROUTES
 # ============================================================================
 
-@app.post("/text-intelligence/analyze")
+@app.post("/api/text-intelligence")
 async def analyze(
     body: TextInput,
     language: str = "en",
@@ -147,7 +142,7 @@ async def analyze(
     intents: Optional[str] = None
 ):
     """
-    POST /text-intelligence/analyze
+    POST /api/text-intelligence
 
     Contract-compliant text intelligence endpoint.
     Accepts JSON body with either text or url field.
@@ -294,6 +289,12 @@ if __name__ == "__main__":
 
     print("\n" + "=" * 70)
     print(f"🚀 FastAPI Text Intelligence Server running at http://localhost:{CONFIG['port']}")
+    print("=" * 70)
+    print("\nAvailable routes:")
+    print(f"  POST /api/text-intelligence")
+    print(f"  GET  /api/metadata")
+    print(f"  GET  /health")
+    print(f"  GET  /docs (OpenAPI documentation)")
     print("=" * 70 + "\n")
 
     uvicorn.run(app, host=CONFIG["host"], port=CONFIG["port"])
