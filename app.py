@@ -9,14 +9,19 @@ Key Features:
 - Contract-compliant API endpoint: POST /api/text-intelligence
 - Accepts text or URL in JSON body
 - Supports multiple intelligence features: summarization, topics, sentiment, intents
+- JWT session auth with page nonce (production only)
 - Async/await for better performance
 - Automatic OpenAPI docs at /docs
 """
 
 import os
+import secrets
+import time
 from typing import Optional
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+
+import jwt
+from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -31,6 +36,91 @@ CONFIG = {
     "port": int(os.environ.get("PORT", 8081)),
     "host": os.environ.get("HOST", "0.0.0.0"),
 }
+
+# ============================================================================
+# SESSION AUTH - JWT tokens with page nonce for production security
+# ============================================================================
+
+SESSION_SECRET = os.environ.get("SESSION_SECRET") or secrets.token_hex(32)
+REQUIRE_NONCE = bool(os.environ.get("SESSION_SECRET"))
+
+# In-memory nonce store: nonce -> expiry timestamp
+session_nonces = {}
+NONCE_TTL = 5 * 60  # 5 minutes
+JWT_EXPIRY = 3600  # 1 hour
+
+
+def generate_nonce():
+    """Generates a single-use nonce and stores it with an expiry."""
+    nonce = secrets.token_hex(16)
+    session_nonces[nonce] = time.time() + NONCE_TTL
+    return nonce
+
+
+def consume_nonce(nonce):
+    """Validates and consumes a nonce (single-use). Returns True if valid."""
+    expiry = session_nonces.pop(nonce, None)
+    if expiry is None:
+        return False
+    return time.time() < expiry
+
+
+def cleanup_nonces():
+    """Remove expired nonces."""
+    now = time.time()
+    expired = [k for k, v in session_nonces.items() if now >= v]
+    for k in expired:
+        del session_nonces[k]
+
+
+# Read frontend/dist/index.html template for nonce injection
+_index_html_template = None
+try:
+    with open(os.path.join(os.path.dirname(__file__), "frontend", "dist", "index.html")) as f:
+        _index_html_template = f.read()
+except FileNotFoundError:
+    pass  # No built frontend (dev mode)
+
+
+def require_session(authorization: str = Header(None)):
+    """FastAPI dependency for JWT session validation."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": {
+                    "type": "AuthenticationError",
+                    "code": "MISSING_TOKEN",
+                    "message": "Authorization header with Bearer token is required",
+                }
+            }
+        )
+    token = authorization[7:]
+    try:
+        jwt.decode(token, SESSION_SECRET, algorithms=["HS256"])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": {
+                    "type": "AuthenticationError",
+                    "code": "INVALID_TOKEN",
+                    "message": "Session expired, please refresh the page",
+                }
+            }
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": {
+                    "type": "AuthenticationError",
+                    "code": "INVALID_TOKEN",
+                    "message": "Invalid session token",
+                }
+            }
+        )
+
 
 # ============================================================================
 # API KEY LOADING
@@ -129,6 +219,47 @@ def build_deepgram_options(
     return options, None
 
 # ============================================================================
+# SESSION ROUTES - Auth endpoints (unprotected)
+# ============================================================================
+
+@app.get("/", response_class=HTMLResponse)
+async def serve_index():
+    """Serve index.html with injected session nonce (production only)."""
+    if not _index_html_template:
+        raise HTTPException(status_code=404, detail="Frontend not built. Run make build first.")
+    cleanup_nonces()
+    nonce = generate_nonce()
+    html = _index_html_template.replace(
+        "</head>",
+        f'<meta name="session-nonce" content="{nonce}">\n</head>'
+    )
+    return HTMLResponse(content=html)
+
+
+@app.get("/api/session")
+async def get_session(x_session_nonce: str = Header(None)):
+    """Issues a JWT. In production, requires valid nonce via X-Session-Nonce header."""
+    if REQUIRE_NONCE:
+        if not x_session_nonce or not consume_nonce(x_session_nonce):
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": {
+                        "type": "AuthenticationError",
+                        "code": "INVALID_NONCE",
+                        "message": "Valid session nonce required. Please refresh the page.",
+                    }
+                }
+            )
+    token = jwt.encode(
+        {"iat": int(time.time()), "exp": int(time.time()) + JWT_EXPIRY},
+        SESSION_SECRET,
+        algorithm="HS256",
+    )
+    return JSONResponse(content={"token": token})
+
+
+# ============================================================================
 # API ROUTES
 # ============================================================================
 
@@ -139,7 +270,8 @@ async def analyze(
     summarize: Optional[str] = None,
     topics: Optional[str] = None,
     sentiment: Optional[str] = None,
-    intents: Optional[str] = None
+    intents: Optional[str] = None,
+    _auth=Depends(require_session)
 ):
     """
     POST /api/text-intelligence
@@ -287,11 +419,13 @@ async def get_metadata():
 if __name__ == "__main__":
     import uvicorn
 
+    nonce_status = " (nonce required)" if REQUIRE_NONCE else ""
     print("\n" + "=" * 70)
     print(f"🚀 FastAPI Text Intelligence Server running at http://localhost:{CONFIG['port']}")
     print("=" * 70)
     print("\nAvailable routes:")
-    print(f"  POST /api/text-intelligence")
+    print(f"  GET  /api/session{nonce_status}")
+    print(f"  POST /api/text-intelligence (auth required)")
     print(f"  GET  /api/metadata")
     print(f"  GET  /health")
     print(f"  GET  /docs (OpenAPI documentation)")
