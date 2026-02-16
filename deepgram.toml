@@ -6,7 +6,7 @@ repository = "https://github.com/deepgram-starters/fastapi-text-intelligence"
 useCase = "text-intelligence"
 language = "python"
 framework = "fastapi"
-sdk = "5.3.2"
+sdk = "6.0.0-rc.1"
 tags = ["text-intelligence", "text-analysis", "nlp", "natural-language-processing", "python", "fastapi"]
 
 [install.pre]
